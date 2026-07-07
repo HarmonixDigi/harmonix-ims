@@ -1,6 +1,6 @@
 {
   "name": "Harmonix IMS",
-  "short_name": "Harmonix",
+  "short_name": "Harmonix IMS",
   "description": "Inventory Management System",
   "start_url": "/",
   "display": "standalone",
