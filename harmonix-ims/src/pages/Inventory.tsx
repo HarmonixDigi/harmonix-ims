@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
-import { Plus, Search, Package, Pencil, Trash2, X, ChevronDown, Camera } from 'lucide-react'
+import { Plus, Search, Package, Pencil, Trash2, X, ChevronDown, Camera, Upload } from 'lucide-react'
 import type { InventoryItem, Organization } from '../types'
 
 type SortMode = 'alphabetical' | 'organization'
@@ -21,6 +21,7 @@ export default function Inventory() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const fileRef = useRef<HTMLInputElement>(null)
+  const cameraRef = useRef<HTMLInputElement>(null)
 
   const canEdit = profile?.role === 'owner' || profile?.role === 'admin'
 
@@ -216,12 +217,18 @@ export default function Inventory() {
 
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-1.5">Photo</label>
-                <input ref={fileRef} type="file" accept="image/*" capture="environment" onChange={onPhoto} className="hidden" />
-                <button onClick={() => fileRef.current?.click()}
-                  className="w-full flex items-center justify-center gap-2 py-3 border-2 border-dashed border-gray-200 rounded-xl text-sm text-gray-500 hover:border-teal hover:text-teal transition-colors">
-                  <Camera size={18} />
-                  {photoPreview ? 'Change Photo' : 'Take / Upload Photo'}
-                </button>
+                <input ref={cameraRef} type="file" accept="image/*" capture="environment" onChange={onPhoto} className="hidden" />
+                <input ref={fileRef} type="file" accept="image/*" onChange={onPhoto} className="hidden" />
+                <div className="flex gap-2">
+                  <button onClick={() => cameraRef.current?.click()}
+                    className="flex-1 flex items-center justify-center gap-2 py-3 border-2 border-dashed border-gray-200 rounded-xl text-sm text-gray-500 hover:border-teal hover:text-teal transition-colors">
+                    <Camera size={16} /> Camera
+                  </button>
+                  <button onClick={() => fileRef.current?.click()}
+                    className="flex-1 flex items-center justify-center gap-2 py-3 border-2 border-dashed border-gray-200 rounded-xl text-sm text-gray-500 hover:border-teal hover:text-teal transition-colors">
+                    <Upload size={16} /> Upload
+                  </button>
+                </div>
                 {photoPreview && <img src={photoPreview} alt="preview" className="w-full h-40 object-cover rounded-xl mt-2" />}
               </div>
 
