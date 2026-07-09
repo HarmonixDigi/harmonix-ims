@@ -9,10 +9,10 @@ const ROLE_LABEL: Record<Role, string> = {
 }
 
 const NAV = [
+  { path: '/transactions', label: 'Transaction Management', icon: ArrowLeftRight, roles: ['owner', 'admin', 'manager', 'viewer'] },
+  { path: '/inventory', label: 'Inventory Management', icon: Package, roles: ['owner', 'admin', 'manager', 'viewer'] },
   { path: '/organizations', label: 'Organization Management', icon: Building2, roles: ['owner'] },
   { path: '/users', label: 'User Management', icon: Users, roles: ['owner', 'admin'] },
-  { path: '/inventory', label: 'Inventory Management', icon: Package, roles: ['owner', 'admin', 'manager', 'viewer'] },
-  { path: '/transactions', label: 'Transaction Management', icon: ArrowLeftRight, roles: ['owner', 'admin', 'manager', 'viewer'] },
 ] as const
 
 interface Props { profile: Profile }
@@ -58,7 +58,7 @@ export default function Layout({ profile }: Props) {
           <div className="absolute inset-0 bg-black/40" onClick={() => setMenuOpen(false)} />
           <div className="relative z-50 w-72 max-w-[85vw] bg-white h-full shadow-2xl flex flex-col">
             <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-              <span className="font-bold text-gray-800">Menu</span>
+              <img src="/logo.png" alt="Harmonix" className="h-10 object-contain" />
               <button onClick={() => setMenuOpen(false)} className="p-1 rounded-lg hover:bg-gray-100">
                 <X size={20} />
               </button>

@@ -76,7 +76,8 @@ export default function Users() {
   async function del(u: Profile) {
     if (u.id === me?.id) { alert("You can't delete your own account"); return }
     if (!confirm(`Delete user "${u.name}"?`)) return
-    await supabase.from('profiles').delete().eq('id', u.id)
+    const { error } = await supabase.from('profiles').delete().eq('id', u.id)
+    if (error) { alert(`Cannot delete: ${error.message}`); return }
     await load()
   }
 

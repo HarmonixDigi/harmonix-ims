@@ -1,8 +1,16 @@
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
-import { Plus, Search, Package, Pencil, Trash2, X, ChevronDown, Camera, Upload } from 'lucide-react'
-import type { InventoryItem, Organization } from '../types'
+import { Plus, Search, Package, Pencil, Trash2, X, ChevronDown, Camera, Upload, ScanLine } from 'lucide-react'
+import BarcodeScanner from '../components/BarcodeScanner'
+import type { InventoryItem, Organization, ItemType } from '../types'
+
+const ITEM_TYPES: { value: ItemType; label: string }[] = [
+  { value: 'book', label: 'Book' },
+  { value: 'activity_sheet', label: 'Activity Sheet' },
+  { value: 'activity_resource', label: 'Activity Resource' },
+  { value: 'merchandise', label: 'Merchandise' },
+]
 
 type SortMode = 'alphabetical' | 'organization'
 
@@ -15,11 +23,12 @@ export default function Inventory() {
   const [loading, setLoading] = useState(true)
   const [modal, setModal] = useState<'add' | 'edit' | null>(null)
   const [editing, setEditing] = useState<InventoryItem | null>(null)
-  const [form, setForm] = useState({ name: '', item_code: '', organization_id: '', reorder_quantity: '', photograph_url: '' })
+  const [form, setForm] = useState({ name: '', item_code: '', item_type: '' as ItemType | '', isbn: '', organization_id: '', reorder_quantity: '', photograph_url: '' })
   const [photoFile, setPhotoFile] = useState<File | null>(null)
   const [photoPreview, setPhotoPreview] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [showScanner, setShowScanner] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
   const cameraRef = useRef<HTMLInputElement>(null)
 
@@ -39,12 +48,12 @@ export default function Inventory() {
   }
 
   function openAdd() {
-    setForm({ name: '', item_code: '', organization_id: '', reorder_quantity: '', photograph_url: '' })
+    setForm({ name: '', item_code: '', item_type: '', isbn: '', organization_id: '', reorder_quantity: '', photograph_url: '' })
     setPhotoFile(null); setPhotoPreview(''); setEditing(null); setError(''); setModal('add')
   }
 
   function openEdit(item: InventoryItem) {
-    setForm({ name: item.name, item_code: item.item_code, organization_id: item.organization_id ?? '', reorder_quantity: String(item.reorder_quantity), photograph_url: item.photograph_url ?? '' })
+    setForm({ name: item.name, item_code: item.item_code, item_type: item.item_type ?? '', isbn: item.isbn ?? '', organization_id: item.organization_id ?? '', reorder_quantity: String(item.reorder_quantity), photograph_url: item.photograph_url ?? '' })
     setPhotoFile(null); setPhotoPreview(item.photograph_url ?? ''); setEditing(item); setError(''); setModal('edit')
   }
 
@@ -74,6 +83,8 @@ export default function Inventory() {
     if (modal === 'add') {
       const { error: e } = await supabase.from('inventory_items').insert({
         name: form.name.trim(), item_code: form.item_code.trim().toUpperCase(),
+        item_type: form.item_type || null,
+        isbn: form.item_type === 'book' ? (form.isbn.trim() || null) : null,
         organization_id: form.organization_id || null, reorder_quantity: rq,
         current_stock: 0, photograph_url: photoUrl
       })
@@ -81,6 +92,8 @@ export default function Inventory() {
     } else if (editing) {
       const { error: e } = await supabase.from('inventory_items').update({
         name: form.name.trim(), item_code: form.item_code.trim().toUpperCase(),
+        item_type: form.item_type || null,
+        isbn: form.item_type === 'book' ? (form.isbn.trim() || null) : null,
         organization_id: form.organization_id || null, reorder_quantity: rq,
         photograph_url: photoUrl ?? editing.photograph_url
       }).eq('id', editing.id)
@@ -151,6 +164,12 @@ export default function Inventory() {
                   <div className="flex-1 min-w-0">
                     <p className="font-bold text-gray-900 leading-tight">{item.name}</p>
                     <p className="text-xs text-gray-400 font-mono mt-0.5">{item.item_code}</p>
+                    {item.item_type && (
+                      <span className="inline-block mt-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-teal/10 text-teal">
+                        {ITEM_TYPES.find(t => t.value === item.item_type)?.label ?? item.item_type}
+                      </span>
+                    )}
+                    {item.isbn && <p className="text-xs text-gray-400 mt-0.5">ISBN: {item.isbn}</p>}
                   </div>
                   {item.organization && (
                     <span className="text-xs text-gray-400 flex-shrink-0">{item.organization.name}</span>
@@ -192,6 +211,13 @@ export default function Inventory() {
         </div>
       )}
 
+      {showScanner && (
+        <BarcodeScanner
+          onScan={code => { setForm(f => ({ ...f, isbn: code })); setShowScanner(false) }}
+          onClose={() => setShowScanner(false)}
+        />
+      )}
+
       {modal && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/40">
           <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl max-h-[90vh] overflow-y-auto">
@@ -202,6 +228,38 @@ export default function Inventory() {
             <div className="p-5 space-y-4">
               <FI label="Item Name *" value={form.name} onChange={v => setForm(f => ({ ...f, name: v }))} />
               <FI label="Item Code *" value={form.item_code} onChange={v => setForm(f => ({ ...f, item_code: v }))} placeholder="e.g. BOOK-001" />
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Item Type</label>
+                <div className="relative">
+                  <select value={form.item_type} onChange={e => setForm(f => ({ ...f, item_type: e.target.value as ItemType | '', isbn: '' }))}
+                    className="w-full appearance-none px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal">
+                    <option value="">Select type…</option>
+                    {ITEM_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+                  </select>
+                  <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                </div>
+              </div>
+              {form.item_type === 'book' && (
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1.5">ISBN</label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={form.isbn}
+                      onChange={e => setForm(f => ({ ...f, isbn: e.target.value }))}
+                      placeholder="e.g. 978-3-16-148410-0"
+                      className="flex-1 px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowScanner(true)}
+                      className="flex items-center gap-1.5 px-3 py-3 bg-teal text-white rounded-xl text-sm font-semibold hover:bg-teal/90 whitespace-nowrap"
+                    >
+                      <ScanLine size={16} /> Scan
+                    </button>
+                  </div>
+                </div>
+              )}
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-1.5">Organization</label>
                 <div className="relative">

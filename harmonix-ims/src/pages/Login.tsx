@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { useAuth } from '../hooks/useAuth'
-import { Package } from 'lucide-react'
 
 export default function Login() {
   const { login } = useAuth()
@@ -23,9 +22,7 @@ export default function Login() {
     <div className="min-h-screen bg-bg flex items-center justify-center p-4">
       <div className="w-full max-w-sm bg-white rounded-2xl shadow-sm border border-gray-100 p-8">
         <div className="flex flex-col items-center mb-8">
-          <div className="w-16 h-16 bg-orange rounded-2xl flex items-center justify-center mb-4 shadow-sm">
-            <Package size={32} className="text-white" />
-          </div>
+          <img src="/logo.png" alt="Harmonix" className="w-28 h-28 object-contain mb-3" />
           <h1 className="text-2xl font-bold text-gray-900">Harmonix IMS</h1>
           <p className="text-gray-500 text-sm mt-1">Inventory Management System</p>
         </div>

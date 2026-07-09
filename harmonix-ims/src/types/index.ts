@@ -20,10 +20,14 @@ export interface Organization {
   created_at: string
 }
 
+export type ItemType = 'book' | 'activity_sheet' | 'activity_resource' | 'merchandise'
+
 export interface InventoryItem {
   id: string
   name: string
   item_code: string
+  item_type?: ItemType
+  isbn?: string
   organization_id?: string
   organization?: Organization
   reorder_quantity: number
