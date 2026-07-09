@@ -10,50 +10,64 @@ interface Props {
 export default function BarcodeScanner({ onScan, onClose }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const controlsRef = useRef<{ stop: () => void } | null>(null)
+  const activeRef = useRef(true)
   const [status, setStatus] = useState<'starting' | 'scanning' | 'error'>('starting')
   const [errorMsg, setErrorMsg] = useState('')
 
   useEffect(() => {
-    const reader = new BrowserMultiFormatReader()
-    let stopped = false
+    activeRef.current = true
 
-    reader.decodeFromConstraints(
-      { video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } } },
-      videoRef.current!,
-      (result, error, controls) => {
-        if (stopped) return
+    async function start() {
+      try {
+        const reader = new BrowserMultiFormatReader()
+
+        // prefer back camera on mobile, fall back to default
+        let deviceId: string | undefined
+        try {
+          const devices = await BrowserMultiFormatReader.listVideoInputDevices()
+          const back = devices.find(d => /back|rear|environment/i.test(d.label))
+          deviceId = back?.deviceId ?? devices[0]?.deviceId
+        } catch { /* use default */ }
+
+        const controls = await reader.decodeFromVideoDevice(
+          deviceId,
+          videoRef.current!,
+          (result) => {
+            if (!activeRef.current || !result) return
+            activeRef.current = false
+            controlsRef.current?.stop()
+            onScan(result.getText())
+          }
+        )
+
         controlsRef.current = controls
-        if (result) {
-          stopped = true
-          controls.stop()
-          onScan(result.getText())
-        } else if (error && status === 'starting') {
-          setStatus('scanning')
+
+        if (activeRef.current) setStatus('scanning')
+
+      } catch (err: unknown) {
+        if (!activeRef.current) return
+        setStatus('error')
+        const e = err as { name?: string; message?: string }
+        if (e?.name === 'NotAllowedError') {
+          setErrorMsg('Camera permission denied. Please allow camera access and try again.')
+        } else if (e?.name === 'NotFoundError') {
+          setErrorMsg('No camera found on this device.')
+        } else {
+          setErrorMsg(e?.message ?? 'Could not start camera.')
         }
       }
-    ).then(controls => {
-      if (!stopped) {
-        controlsRef.current = controls
-        setStatus('scanning')
-      }
-    }).catch(err => {
-      setStatus('error')
-      if (err?.name === 'NotAllowedError') {
-        setErrorMsg('Camera permission denied. Please allow camera access and try again.')
-      } else if (err?.name === 'NotFoundError') {
-        setErrorMsg('No camera found on this device.')
-      } else {
-        setErrorMsg(err?.message ?? 'Could not start camera.')
-      }
-    })
+    }
+
+    start()
 
     return () => {
-      stopped = true
+      activeRef.current = false
       controlsRef.current?.stop()
     }
   }, [])
 
   function handleClose() {
+    activeRef.current = false
     controlsRef.current?.stop()
     onClose()
   }
@@ -71,7 +85,7 @@ export default function BarcodeScanner({ onScan, onClose }: Props) {
         {status === 'error' ? (
           <div className="p-6 text-center">
             <div className="text-4xl mb-3">📷</div>
-            <p className="text-sm text-red-600 font-medium">{errorMsg}</p>
+            <p className="text-sm text-red-600 font-medium mb-1">{errorMsg}</p>
             <button onClick={handleClose} className="mt-4 w-full py-3 border border-gray-200 rounded-xl text-sm font-medium text-gray-600">
               Close
             </button>
@@ -86,28 +100,30 @@ export default function BarcodeScanner({ onScan, onClose }: Props) {
                 muted
                 playsInline
               />
-              {/* scanning guide overlay */}
+              {/* aim guide */}
               <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                 <div className="relative w-64 h-20">
-                  <div className="absolute inset-0 border-2 border-orange rounded-md opacity-80" />
-                  {/* corner accents */}
-                  <div className="absolute top-0 left-0 w-4 h-4 border-t-4 border-l-4 border-orange rounded-tl" />
-                  <div className="absolute top-0 right-0 w-4 h-4 border-t-4 border-r-4 border-orange rounded-tr" />
-                  <div className="absolute bottom-0 left-0 w-4 h-4 border-b-4 border-l-4 border-orange rounded-bl" />
-                  <div className="absolute bottom-0 right-0 w-4 h-4 border-b-4 border-r-4 border-orange rounded-br" />
-                  {/* scanning line animation */}
-                  <div className="absolute left-1 right-1 h-0.5 bg-orange/70 rounded animate-bounce" style={{ top: '45%' }} />
+                  <div className="absolute top-0 left-0 w-5 h-5 border-t-4 border-l-4 border-orange" />
+                  <div className="absolute top-0 right-0 w-5 h-5 border-t-4 border-r-4 border-orange" />
+                  <div className="absolute bottom-0 left-0 w-5 h-5 border-b-4 border-l-4 border-orange" />
+                  <div className="absolute bottom-0 right-0 w-5 h-5 border-b-4 border-r-4 border-orange" />
+                  {status === 'scanning' && (
+                    <div className="absolute left-0 right-0 h-0.5 bg-orange/80 animate-bounce" style={{ top: '50%' }} />
+                  )}
                 </div>
               </div>
               {status === 'starting' && (
-                <div className="absolute inset-0 flex items-center justify-center bg-black/50">
+                <div className="absolute inset-0 flex items-center justify-center bg-black/60">
                   <div className="w-8 h-8 border-3 border-orange border-t-transparent rounded-full animate-spin" />
                 </div>
               )}
             </div>
+
             <div className="px-4 py-4">
               <p className="text-xs text-gray-500 text-center mb-3">
-                Point the camera at the barcode on the back of the book
+                {status === 'starting'
+                  ? 'Starting camera…'
+                  : 'Hold the barcode steady inside the box — it will fill in automatically'}
               </p>
               <button onClick={handleClose} className="w-full py-3 border border-gray-200 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-50">
                 Cancel

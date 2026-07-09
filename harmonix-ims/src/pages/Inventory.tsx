@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
 import { Plus, Search, Package, Pencil, Trash2, X, ChevronDown, Camera, Upload, ScanLine } from 'lucide-react'
 import BarcodeScanner from '../components/BarcodeScanner'
+import CameraCapture from '../components/CameraCapture'
 import type { InventoryItem, Organization, ItemType } from '../types'
 
 const ITEM_TYPES: { value: ItemType; label: string }[] = [
@@ -29,6 +30,7 @@ export default function Inventory() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [showScanner, setShowScanner] = useState(false)
+  const [showCamera, setShowCamera] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
   const cameraRef = useRef<HTMLInputElement>(null)
 
@@ -211,6 +213,13 @@ export default function Inventory() {
         </div>
       )}
 
+      {showCamera && (
+        <CameraCapture
+          onCapture={file => { setPhotoFile(file); setPhotoPreview(URL.createObjectURL(file)); setShowCamera(false) }}
+          onClose={() => setShowCamera(false)}
+        />
+      )}
+
       {showScanner && (
         <BarcodeScanner
           onScan={code => { setForm(f => ({ ...f, isbn: code })); setShowScanner(false) }}
@@ -275,10 +284,9 @@ export default function Inventory() {
 
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-1.5">Photo</label>
-                <input ref={cameraRef} type="file" accept="image/*" capture="environment" onChange={onPhoto} className="hidden" />
                 <input ref={fileRef} type="file" accept="image/*" onChange={onPhoto} className="hidden" />
                 <div className="flex gap-2">
-                  <button onClick={() => cameraRef.current?.click()}
+                  <button onClick={() => setShowCamera(true)}
                     className="flex-1 flex items-center justify-center gap-2 py-3 border-2 border-dashed border-gray-200 rounded-xl text-sm text-gray-500 hover:border-teal hover:text-teal transition-colors">
                     <Camera size={16} /> Camera
                   </button>
