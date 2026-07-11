@@ -6,6 +6,8 @@ import Organizations from './pages/Organizations'
 import Users from './pages/Users'
 import Inventory from './pages/Inventory'
 import Transactions from './pages/Transactions'
+import Reports from './pages/Reports'
+import Import from './pages/Import'
 
 export default function App() {
   const { profile, loading } = useAuth()
@@ -26,18 +28,17 @@ export default function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<Layout profile={profile} />}>
-          {role === 'owner' && <Route index element={<Organizations />} />}
+          <Route index element={<Transactions />} />
+          <Route path="transactions" element={<Transactions />} />
+          <Route path="inventory" element={<Inventory />} />
+          <Route path="reports" element={<Reports />} />
           {(role === 'owner' || role === 'admin') && (
             <>
-              {role !== 'owner' && <Route index element={<Users />} />}
               <Route path="organizations" element={<Organizations />} />
               <Route path="users" element={<Users />} />
+              <Route path="import" element={<Import />} />
             </>
           )}
-          {role === 'manager' && <Route index element={<Inventory />} />}
-          {role === 'viewer' && <Route index element={<Inventory />} />}
-          <Route path="inventory" element={<Inventory />} />
-          <Route path="transactions" element={<Transactions />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
       </Routes>

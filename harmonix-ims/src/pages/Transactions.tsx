@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
-import { Plus, Search, ArrowDownCircle, ArrowUpCircle, X, ChevronDown, AlertTriangle } from 'lucide-react'
+import { Plus, Search, ArrowDownCircle, ArrowUpCircle, X, ChevronDown, AlertTriangle, Trash2 } from 'lucide-react'
 import type { Transaction, InventoryItem } from '../types'
 
 type SortMode = 'chronological' | 'item' | 'daterange'
+type TxnType = 'stock-in' | 'stock-out'
+interface LineItem { item_id: string; quantity: string; stock: number | null }
 
 export default function Transactions() {
   const { profile } = useAuth()
@@ -16,8 +18,8 @@ export default function Transactions() {
   const [to, setTo] = useState('')
   const [loading, setLoading] = useState(true)
   const [modal, setModal] = useState(false)
-  const [form, setForm] = useState({ item_id: '', date: today(), type: 'stock-in' as 'stock-in' | 'stock-out', supplier: '', invoice_no: '', receiver: '', purpose: '', quantity: '' })
-  const [currentStock, setCurrentStock] = useState<number | null>(null)
+  const [header, setHeader] = useState({ date: today(), type: 'stock-in' as TxnType, supplier: '', invoice_no: '', receiver: '', purpose: '' })
+  const [lines, setLines] = useState<LineItem[]>([{ item_id: '', quantity: '', stock: null }])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
@@ -36,47 +38,60 @@ export default function Transactions() {
     setLoading(false)
   }
 
-  async function onItemChange(itemId: string) {
-    setForm(f => ({ ...f, item_id: itemId }))
+  async function onLineItemChange(idx: number, itemId: string) {
+    let stock: number | null = null
     if (itemId) {
       const { data } = await supabase.from('inventory_items').select('current_stock').eq('id', itemId).single()
-      setCurrentStock(data?.current_stock ?? null)
-    } else {
-      setCurrentStock(null)
+      stock = data?.current_stock ?? null
     }
+    setLines(ls => ls.map((l, i) => i === idx ? { ...l, item_id: itemId, stock } : l))
   }
 
-  const qty = parseInt(form.quantity) || 0
-  const balance = currentStock !== null
-    ? (form.type === 'stock-in' ? currentStock + qty : currentStock - qty)
-    : null
-  const selectedItem = items.find(i => i.id === form.item_id)
-  const reorderWarning = balance !== null && selectedItem && balance <= selectedItem.reorder_quantity
+  function addLine() {
+    setLines(ls => [...ls, { item_id: '', quantity: '', stock: null }])
+  }
+
+  function removeLine(idx: number) {
+    setLines(ls => ls.filter((_, i) => i !== idx))
+  }
+
+  function getBalance(line: LineItem): number | null {
+    const qty = parseInt(line.quantity) || 0
+    if (line.stock === null || qty <= 0) return null
+    return header.type === 'stock-in' ? line.stock + qty : line.stock - qty
+  }
 
   async function save() {
-    if (!form.item_id || !form.date || qty <= 0) { setError('Item, Date and Quantity are required'); return }
-    if (form.type === 'stock-in' && !form.supplier) { setError('Supplier is required'); return }
-    if (form.type === 'stock-out' && !form.receiver) { setError('Receiver is required'); return }
-    if (balance === null) { setError('Could not calculate balance'); return }
+    if (!header.date) { setError('Date is required'); return }
+    if (header.type === 'stock-in' && !header.supplier) { setError('Supplier is required'); return }
+    if (header.type === 'stock-out' && !header.receiver) { setError('Receiver is required'); return }
+    const validLines = lines.filter(l => l.item_id && parseInt(l.quantity) > 0)
+    if (validLines.length === 0) { setError('Add at least one item with quantity'); return }
     setSaving(true); setError('')
 
-    const { error: txErr } = await supabase.from('transactions').insert({
-      item_id: form.item_id, date: form.date, type: form.type,
-      supplier: form.type === 'stock-in' ? form.supplier : null,
-      invoice_no: form.type === 'stock-in' ? form.invoice_no : null,
-      receiver: form.type === 'stock-out' ? form.receiver : null,
-      purpose: form.type === 'stock-out' ? form.purpose : null,
-      quantity: qty, balance_quantity: balance, created_by: profile?.id
-    })
-    if (txErr) { setError(txErr.message); setSaving(false); return }
-
-    await supabase.from('inventory_items').update({ current_stock: balance }).eq('id', form.item_id)
+    for (const line of validLines) {
+      const qty = parseInt(line.quantity)
+      const balance = getBalance(line)
+      if (balance === null) continue
+      const { error: txErr } = await supabase.from('transactions').insert({
+        item_id: line.item_id, date: header.date, type: header.type,
+        supplier: header.type === 'stock-in' ? header.supplier : null,
+        invoice_no: header.type === 'stock-in' ? header.invoice_no : null,
+        receiver: header.type === 'stock-out' ? header.receiver : null,
+        purpose: header.type === 'stock-out' ? header.purpose : null,
+        quantity: qty, balance_quantity: balance, created_by: profile?.id
+      })
+      if (!txErr) {
+        await supabase.from('inventory_items').update({ current_stock: balance }).eq('id', line.item_id)
+      }
+    }
     await load(); setSaving(false); setModal(false)
   }
 
   function openAdd() {
-    setForm({ item_id: '', date: today(), type: 'stock-in', supplier: '', invoice_no: '', receiver: '', purpose: '', quantity: '' })
-    setCurrentStock(null); setError(''); setModal(true)
+    setHeader({ date: today(), type: 'stock-in', supplier: '', invoice_no: '', receiver: '', purpose: '' })
+    setLines([{ item_id: '', quantity: '', stock: null }])
+    setError(''); setModal(true)
   }
 
   let filtered = txns.filter(t =>
@@ -192,57 +207,74 @@ export default function Transactions() {
               <button onClick={() => setModal(false)} className="p-1 rounded-lg hover:bg-gray-100"><X size={20} /></button>
             </div>
             <div className="p-5 space-y-4">
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1.5">Item *</label>
-                <div className="relative">
-                  <select value={form.item_id} onChange={e => onItemChange(e.target.value)}
-                    className="w-full appearance-none px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal">
-                    <option value="">Select item…</option>
-                    {items.map(i => <option key={i.id} value={i.id}>{i.name} (Stock: {i.current_stock})</option>)}
-                  </select>
-                  <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-                </div>
-              </div>
-
-              <FT label="Date *" value={form.date} onChange={v => setForm(f => ({ ...f, date: v }))} type="date" />
-
+              {/* Header fields */}
+              <FT label="Date *" value={header.date} onChange={v => setHeader(h => ({ ...h, date: v }))} type="date" />
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-1.5">Transaction Type *</label>
-                <div className="relative">
-                  <select value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value as 'stock-in' | 'stock-out' }))}
-                    className="w-full appearance-none px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal">
-                    <option value="stock-in">Stock-In</option>
-                    <option value="stock-out">Stock-Out</option>
-                  </select>
-                  <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                <div className="grid grid-cols-2 gap-2">
+                  {(['stock-in', 'stock-out'] as TxnType[]).map(t => (
+                    <button key={t} onClick={() => setHeader(h => ({ ...h, type: t }))}
+                      className={`py-2.5 rounded-xl text-sm font-semibold border transition-colors ${header.type === t ? 'bg-teal text-white border-teal' : 'bg-white text-gray-600 border-gray-200'}`}>
+                      {t === 'stock-in' ? 'Stock-In' : 'Stock-Out'}
+                    </button>
+                  ))}
                 </div>
               </div>
-
-              {form.type === 'stock-in' ? (
+              {header.type === 'stock-in' ? (
                 <>
-                  <FT label="Supplier *" value={form.supplier} onChange={v => setForm(f => ({ ...f, supplier: v }))} />
-                  <FT label="Invoice No." value={form.invoice_no} onChange={v => setForm(f => ({ ...f, invoice_no: v }))} />
-                  <FT label="Quantity In *" value={form.quantity} onChange={v => setForm(f => ({ ...f, quantity: v }))} type="number" />
+                  <FT label="Supplier *" value={header.supplier} onChange={v => setHeader(h => ({ ...h, supplier: v }))} />
+                  <FT label="Invoice No." value={header.invoice_no} onChange={v => setHeader(h => ({ ...h, invoice_no: v }))} />
                 </>
               ) : (
                 <>
-                  <FT label="Receiver *" value={form.receiver} onChange={v => setForm(f => ({ ...f, receiver: v }))} />
-                  <FT label="Purpose" value={form.purpose} onChange={v => setForm(f => ({ ...f, purpose: v }))} />
-                  <FT label="Quantity Out *" value={form.quantity} onChange={v => setForm(f => ({ ...f, quantity: v }))} type="number" />
+                  <FT label="Receiver *" value={header.receiver} onChange={v => setHeader(h => ({ ...h, receiver: v }))} />
+                  <FT label="Purpose" value={header.purpose} onChange={v => setHeader(h => ({ ...h, purpose: v }))} />
                 </>
               )}
 
-              {balance !== null && (
-                <div className={`px-4 py-3 rounded-xl ${reorderWarning ? 'bg-orange/10 border border-orange/20' : 'bg-teal-light border border-teal/20'}`}>
-                  <p className="text-sm font-semibold text-gray-700">Balance Quantity: <span className={reorderWarning ? 'text-orange' : 'text-teal'}>{balance}</span></p>
-                  {reorderWarning && (
-                    <div className="flex items-center gap-2 mt-1">
-                      <AlertTriangle size={14} className="text-orange" />
-                      <p className="text-xs text-orange font-medium">Stock will reach reorder level — time to procure!</p>
-                    </div>
-                  )}
+              {/* Line items */}
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Items *</label>
+                <div className="space-y-2">
+                  {lines.map((line, idx) => {
+                    const balance = getBalance(line)
+                    const selItem = items.find(i => i.id === line.item_id)
+                    const warn = balance !== null && selItem && balance <= selItem.reorder_quantity
+                    return (
+                      <div key={idx} className="bg-gray-50 rounded-xl p-3 space-y-2">
+                        <div className="flex gap-2">
+                          <div className="relative flex-1">
+                            <select value={line.item_id} onChange={e => onLineItemChange(idx, e.target.value)}
+                              className="w-full appearance-none px-3 py-2.5 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal">
+                              <option value="">Select item…</option>
+                              {items.map(i => <option key={i.id} value={i.id}>{i.name} ({i.current_stock})</option>)}
+                            </select>
+                            <ChevronDown size={12} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                          </div>
+                          <input type="number" value={line.quantity} onChange={e => setLines(ls => ls.map((l, i) => i === idx ? { ...l, quantity: e.target.value } : l))}
+                            placeholder="Qty" min="1"
+                            className="w-20 px-3 py-2.5 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-teal" />
+                          {lines.length > 1 && (
+                            <button onClick={() => removeLine(idx)} className="p-2 text-red-400 hover:text-red-600">
+                              <Trash2 size={16} />
+                            </button>
+                          )}
+                        </div>
+                        {balance !== null && (
+                          <div className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium ${warn ? 'bg-orange/10 text-orange' : 'bg-teal/10 text-teal'}`}>
+                            {warn && <AlertTriangle size={12} />}
+                            Balance: {balance}{warn ? ' — Low stock!' : ''}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
                 </div>
-              )}
+                <button onClick={addLine}
+                  className="mt-2 w-full py-2.5 border-2 border-dashed border-gray-200 rounded-xl text-sm text-gray-500 hover:border-teal hover:text-teal transition-colors font-medium">
+                  + Add Another Item
+                </button>
+              </div>
 
               {error && <p className="text-red-500 text-sm bg-red-50 px-3 py-2 rounded-xl">{error}</p>}
               <div className="flex gap-3 pt-2">

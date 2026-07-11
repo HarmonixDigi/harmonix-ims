@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Outlet, useNavigate, useLocation } from 'react-router-dom'
-import { Menu, X, Building2, Users, Package, ArrowLeftRight, LogOut } from 'lucide-react'
+import { Menu, X, Building2, Users, Package, ArrowLeftRight, LogOut, BarChart2, Upload } from 'lucide-react'
 import { useAuth } from '../hooks/useAuth'
 import type { Profile, Role } from '../types'
 
@@ -11,8 +11,10 @@ const ROLE_LABEL: Record<Role, string> = {
 const NAV = [
   { path: '/transactions', label: 'Transaction Management', icon: ArrowLeftRight, roles: ['owner', 'admin', 'manager', 'viewer'] },
   { path: '/inventory', label: 'Inventory Management', icon: Package, roles: ['owner', 'admin', 'manager', 'viewer'] },
+  { path: '/reports', label: 'Reports', icon: BarChart2, roles: ['owner', 'admin', 'manager', 'viewer'] },
   { path: '/organizations', label: 'Organization Management', icon: Building2, roles: ['owner'] },
   { path: '/users', label: 'User Management', icon: Users, roles: ['owner', 'admin'] },
+  { path: '/import', label: 'Import Data', icon: Upload, roles: ['owner', 'admin'] },
 ] as const
 
 interface Props { profile: Profile }
