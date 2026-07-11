@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../hooks/useAuth'
-import { FileDown, Package, AlertTriangle, TrendingUp, TrendingDown } from 'lucide-react'
+import { FileDown, FileText, Package, AlertTriangle, TrendingUp, TrendingDown } from 'lucide-react'
 import type { InventoryItem, Transaction } from '../types'
 
 type ReportTab = 'overview' | 'stock-levels' | 'movement'
@@ -187,6 +187,46 @@ export default function Reports() {
     else exportStockPDF()
   }
 
+  function exportCSV() {
+    let csv = ''
+    if (tab === 'movement') {
+      csv = 'Date,Item,Item Code,Type,Quantity,Balance,Supplier/Receiver\n'
+      csv += txns.map(t =>
+        [
+          t.date,
+          t.item?.name ?? '',
+          t.item?.item_code ?? '',
+          t.type,
+          t.quantity,
+          t.balance_quantity,
+          t.supplier ?? t.receiver ?? '',
+        ].join(',')
+      ).join('\n')
+    } else {
+      const rows = tab === 'stock-levels' ? items : lowStockItems
+      csv = 'Item Name,Item Code,Item Type,Organization,Current Stock,Reorder Level,Status\n'
+      csv += rows.map(i =>
+        [
+          i.name,
+          i.item_code,
+          i.item_type ?? '',
+          i.organization?.name ?? '',
+          i.current_stock,
+          i.reorder_quantity,
+          i.current_stock <= i.reorder_quantity ? 'Reorder Now' : 'OK',
+        ].join(',')
+      ).join('\n')
+    }
+    const label = tab === 'movement' ? 'movement' : tab === 'stock-levels' ? 'stock-levels' : 'overview'
+    const blob = new Blob([csv], { type: 'text/csv' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `harmonix-${label}-${new Date().toISOString().slice(0, 10)}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
   if (loading) return (
     <div className="flex justify-center py-20">
       <div className="w-8 h-8 border-2 border-teal border-t-transparent rounded-full animate-spin" />
@@ -197,10 +237,16 @@ export default function Reports() {
     <div>
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-lg font-bold text-gray-900">Reports</h2>
-        <button onClick={handleExport} disabled={exporting}
-          className="flex items-center gap-1.5 bg-teal text-white text-xs font-semibold rounded-xl px-3 py-2 disabled:opacity-60">
-          <FileDown size={14} /> {exporting ? 'Preparing…' : 'Download PDF'}
-        </button>
+        <div className="flex gap-2">
+          <button onClick={exportCSV}
+            className="flex items-center gap-1.5 border border-teal text-teal text-xs font-semibold rounded-xl px-3 py-2 hover:bg-teal/5">
+            <FileText size={14} /> CSV
+          </button>
+          <button onClick={handleExport} disabled={exporting}
+            className="flex items-center gap-1.5 bg-teal text-white text-xs font-semibold rounded-xl px-3 py-2 disabled:opacity-60">
+            <FileDown size={14} /> {exporting ? 'Preparing…' : 'PDF'}
+          </button>
+        </div>
       </div>
 
       {/* Summary cards */}
