@@ -32,11 +32,13 @@ export default function App() {
           <Route path="transactions" element={<Transactions />} />
           <Route path="inventory" element={<Inventory />} />
           <Route path="reports" element={<Reports />} />
+          {(role === 'owner' || role === 'admin' || role === 'manager') && (
+            <Route path="import" element={<Import />} />
+          )}
           {(role === 'owner' || role === 'admin') && (
             <>
               <Route path="organizations" element={<Organizations />} />
               <Route path="users" element={<Users />} />
-              <Route path="import" element={<Import />} />
             </>
           )}
           <Route path="*" element={<Navigate to="/" replace />} />

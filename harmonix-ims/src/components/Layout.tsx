@@ -8,13 +8,16 @@ const ROLE_LABEL: Record<Role, string> = {
   owner: 'Owner', admin: 'Admin', manager: 'Manager', viewer: 'Viewer'
 }
 
-const NAV = [
+const NAV_MAIN = [
   { path: '/transactions', label: 'Transaction Management', icon: ArrowLeftRight, roles: ['owner', 'admin', 'manager', 'viewer'] },
   { path: '/inventory', label: 'Inventory Management', icon: Package, roles: ['owner', 'admin', 'manager', 'viewer'] },
+  { path: '/import', label: 'Import Data', icon: Upload, roles: ['owner', 'admin', 'manager'] },
   { path: '/reports', label: 'Reports', icon: BarChart2, roles: ['owner', 'admin', 'manager', 'viewer'] },
+] as const
+
+const NAV_ADMIN = [
   { path: '/organizations', label: 'Organization Management', icon: Building2, roles: ['owner'] },
   { path: '/users', label: 'User Management', icon: Users, roles: ['owner', 'admin'] },
-  { path: '/import', label: 'Import Data', icon: Upload, roles: ['owner', 'admin'] },
 ] as const
 
 interface Props { profile: Profile }
@@ -25,10 +28,12 @@ export default function Layout({ profile }: Props) {
   const navigate = useNavigate()
   const location = useLocation()
 
-  const visibleNav = NAV.filter(n => (n.roles as readonly string[]).includes(profile.role))
+  const visibleMain = NAV_MAIN.filter(n => (n.roles as readonly string[]).includes(profile.role))
+  const visibleAdmin = NAV_ADMIN.filter(n => (n.roles as readonly string[]).includes(profile.role))
+  const allVisible = [...visibleMain, ...visibleAdmin]
 
-  const currentTitle = visibleNav.find(n =>
-    location.pathname === n.path || (location.pathname === '/' && n === visibleNav[0])
+  const currentTitle = allVisible.find(n =>
+    location.pathname === n.path || (location.pathname === '/' && n === visibleMain[0])
   )?.label ?? 'Harmonix IMS'
 
   function go(path: string) {
@@ -73,10 +78,10 @@ export default function Layout({ profile }: Props) {
                 {ROLE_LABEL[profile.role]}
               </span>
             </div>
-            <nav className="flex-1 px-3 py-4 space-y-1">
-              {visibleNav.map(({ path, label, icon: Icon }) => {
+            <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
+              {visibleMain.map(({ path, label, icon: Icon }) => {
                 const active = location.pathname === path ||
-                  (location.pathname === '/' && path === visibleNav[0].path)
+                  (location.pathname === '/' && path === visibleMain[0].path)
                 return (
                   <button
                     key={path}
@@ -92,6 +97,28 @@ export default function Layout({ profile }: Props) {
                   </button>
                 )
               })}
+              {visibleAdmin.length > 0 && (
+                <>
+                  <div className="mx-2 my-2 border-t border-gray-100" />
+                  {visibleAdmin.map(({ path, label, icon: Icon }) => {
+                    const active = location.pathname === path
+                    return (
+                      <button
+                        key={path}
+                        onClick={() => go(path)}
+                        className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-xl text-left transition-colors ${
+                          active
+                            ? 'bg-orange text-white font-semibold'
+                            : 'text-gray-700 hover:bg-gray-50 active:bg-gray-100'
+                        }`}
+                      >
+                        <Icon size={20} />
+                        <span className="text-sm">{label}</span>
+                      </button>
+                    )
+                  })}
+                </>
+              )}
             </nav>
             <div className="px-3 pb-6">
               <button
